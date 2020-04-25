@@ -1,28 +1,28 @@
-name: Elixir CI
-
 on: [push, pull_request]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
-
-    container:
-      image: elixir:1.10.2-slim
-
+    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    strategy:
+      matrix:
+        otp: [22.x]
+        elixir: [1.10.x]
     steps:
-      - uses: actions/checkout@v1
-      - name: Install Dependencies
-        run: |
-          mix local.rebar --force
-          mix local.hex --force
-          mix deps.get
-      - name: Compile app
-        run: mix compile --warnings-as-errors
-      - name: Run format check
+      - uses: actions/checkout@v1.0.0
+      - uses: actions/setup-elixir@v1.1.0
+        with:
+          otp-version: ${{matrix.otp}}
+          elixir-version: ${{matrix.elixir}}
+      - name: Check formatting
+        if: matrix.elixir == '1.10.x'
         run: mix format --check-formatted
-      - name: Run credo check
-        run: mix credo
-      - name: Run Tests
-        run: |
-          mkdir doc
-          mix test --cover
+      - name: Install Dependencies
+        run: mix deps.get
+      - name: Check style
+        if: matrix.elixir == '1.10.x'
+        run: mix credo --format flycheck
+      - name: Compile project
+        run: mix compile --warnings-as-errors
+      - name: Run tests
+        run: mix test  --cover
