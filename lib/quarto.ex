@@ -64,15 +64,84 @@ defmodule Quarto do
   @doc """
   Build the cursor for a given entry
 
-  See also `Quarto.CursorValue`
+  It's a helper function for taking the (nested) fields used for ordering and constructing the
+  list that can be passed to the cursor encoder.
+
+  In addition to this it's also possible to pass in the queryable used to generate the original query and cursors
+  and derive the (nested) fields from that.
+
+  Building the opaque cursor from the list `cursor_for_entry/3` generates can be done by e.g. the `Quarto.Cursor.Base64` module
+  or any other module that implements the `Quarto.Cursor` behaviour.
+
+      iex> Quarto.cursor_for_entry(%User{id: 1}, :id)
+      [1]
+      iex> Quarto.cursor_for_entry(%User{id: 1}, [:id, :name])
+      [1, nil]
+      iex> Quarto.cursor_for_entry(%User{id: 1, profile: %Profile{title: "A profile"}}, {:profile, :title})
+      ["A profile"]
+      iex> Quarto.cursor_for_entry(%User{id: 1, profile: %Profile{title: "A profile"}}, [[:profile, :title], :id])
+      ["A profile", 1]
+      iex> Quarto.cursor_for_entry(%User{id: 1, profile: %Profile{title: "A profile"}}, [:id, {:profile, :title}])
+      [1, "A profile"]
+      iex> cursor = Quarto.cursor_for_entry(%Post{id: 2, user: %User{id: 1, profile: %Profile{title: "A profile"}}}, {:user, {:profile, :title}})
+      ["A profile"]
+      iex> Quarto.Cursor.Base64.encode!(cursor)
+      "g2wAAAABbQAAAAlBIHByb2ZpbGVq"
+
+      iex> queryable = Post |> order_by({:desc, :position})
+      iex> Quarto.cursor_for_entry(%Post{id: 2, position: 3}, queryable)
+      [3]
+
+      iex> queryable = Quarto.Post
+      ...> |> join(:left, [p], u in assoc(p, :user), as: :user)
+      ...> |> preload([p, u], user: u)
+      ...> |> order_by([p, u], desc: u.name)
+      ...> |> order_by({:desc, :position})
+      iex> cursor = Quarto.cursor_for_entry(%Post{id: 2, position: 3, user: %User{name: "A. Hamilton"}}, queryable)
+      ["A. Hamilton", 3]
+      iex> Quarto.Cursor.Base64.encode!(cursor)
+      "g2wAAAACbQAAAAtBLiBIYW1pbHRvbmEDag=="
   """
-  @spec cursor_for_entry(map, Quarto.Config.t()) :: any
-  def cursor_for_entry(entry, config) do
-    build_cursor_value(entry, config) |> config.cursor.encode!(config)
+  def cursor_for_entry(entry, queryable, opts \\ [])
+
+  def cursor_for_entry(entry, %Ecto.Query{} = queryable, opts) do
+    %{cursor_builder: {m, f, _}} = config = Quarto.Config.new([queryable: queryable] ++ opts)
+
+    Kernel.apply(m, f, [entry, config])
+  end
+
+  def cursor_for_entry(entry, cursor_fields, _opts)
+      when is_list(cursor_fields) do
+    Enum.map(cursor_fields, &cursor_for_entry_path(entry, &1))
+  end
+
+  def cursor_for_entry(entry, cursor_fields, opts) do
+    cursor_for_entry(entry, [cursor_fields], opts)
+  end
+
+  defp cursor_for_entry_path(entry, field) when is_atom(field) do
+    Map.get(entry, field)
+  end
+
+  defp cursor_for_entry_path(entry, {field, key}) do
+    path = to_list({field, key})
+    cursor_for_entry_path(entry, path)
+  end
+
+  defp cursor_for_entry_path(entry, path) when is_list(path) do
+    path = Enum.map(path, &Access.key/1)
+    get_in(entry, path)
+  end
+
+  defp to_list(nest) when is_tuple(nest) do
+    case Tuple.to_list(nest) do
+      [field, {a, b}] -> [field | to_list({a, b})]
+      [field, value] -> [field, value]
+    end
   end
 
   defp build_cursor_value(entry, %{cursor_builder: {m, f, _}} = config) do
-    Kernel.apply(m, f, [entry, config])
+    Kernel.apply(m, f, [entry, config]) |> config.cursor.encode!(config)
   end
 
   defp after_cursor([], [], _config), do: nil
@@ -110,7 +179,7 @@ defmodule Quarto do
 
   defp first_or_nil(entries, config) do
     if first = List.first(entries) do
-      cursor_for_entry(first, config)
+      build_cursor_value(first, config)
     else
       nil
     end
@@ -118,7 +187,7 @@ defmodule Quarto do
 
   defp last_or_nil(entries, config) do
     if last = List.last(entries) do
-      cursor_for_entry(last, config)
+      build_cursor_value(last, config)
     else
       nil
     end

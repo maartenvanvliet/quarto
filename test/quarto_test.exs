@@ -5,6 +5,11 @@ defmodule QuartoTest do
   alias Quarto.Page
   alias Quarto.Page.Metadata
 
+  alias Quarto.Post
+  alias Quarto.User
+  alias Quarto.Profile
+
+  doctest Quarto
   setup :create_posts
 
   @opts [limit: 4]
