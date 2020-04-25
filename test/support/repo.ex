@@ -7,9 +7,10 @@ defmodule Quarto.Repo do
     test_config = [
       pool: Ecto.Adapters.SQL.Sandbox,
       username: "postgres",
+      password: "postgres",
       database: "quarto_test",
-      hostname: "localhost",
-      port: "5432"
+      hostname: System.get_env("DB_HOST", "localhost"),
+      port: System.get_env("DB_PORT", "5432")
     ]
 
     {:ok, Keyword.merge(config, test_config)}
