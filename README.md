@@ -1,6 +1,6 @@
 # Quarto
 
-## [![Hex pm](http://img.shields.io/hexpm/v/quarto.svg?style=flat)](https://hex.pm/packages/quarto) [![Hex Docs](https://img.shields.io/badge/hex-docs-9768d1.svg)](https://hexdocs.pm/quarto) [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+## [![Hex pm](http://img.shields.io/hexpm/v/quarto.svg?style=flat)](https://hex.pm/packages/quarto) [![Hex Docs](https://img.shields.io/badge/hex-docs-9768d1.svg)](https://hexdocs.pm/quarto) [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)![.github/workflows/elixir.yml](https://github.com/maartenvanvliet/quarto/workflows/.github/workflows/elixir.yml/badge.svg)
 
 ---
 
