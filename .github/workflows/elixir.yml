@@ -1,0 +1,28 @@
+name: Elixir CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    container:
+      image: elixir:1.10.3-slim
+
+    steps:
+      - uses: actions/checkout@v1
+      - name: Install Dependencies
+        run: |
+          mix local.rebar --force
+          mix local.hex --force
+          mix deps.get
+      - name: Compile app
+        run: mix compile --warnings-as-errors
+      - name: Run format check
+        run: mix format --check-formatted
+      - name: Run credo check
+        run: mix credo
+      - name: Run Tests
+        run: |
+          mkdir doc
+          mix test --cover
