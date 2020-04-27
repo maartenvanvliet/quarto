@@ -38,7 +38,7 @@ defmodule Quarto.Config do
       before: decode(opts[:before], codec),
       after: decode(opts[:after], codec),
       queryable: queryable,
-      coalesce: opts[:coalesce] || fn _field, _position_, value -> value end,
+      coalesce: opts[:coalesce] || fn _field, _position_, _value -> nil end,
       cursor_builder: {Quarto.CursorValue, :build, []},
       cursor_fields: cursor_fields.build(queryable, opts),
       include_total_count: opts[:include_total_count] || false,

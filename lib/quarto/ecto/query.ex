@@ -29,7 +29,6 @@ defmodule Quarto.Ecto.Query do
     |> reverse_order
   end
 
-  # Applying two cursors at the same time is not tested in unit tests
   defp maybe_where(queryable, %{after: after_c, before: before} = config) do
     queryable
     |> filter_values(config, before, :before)
@@ -37,14 +36,17 @@ defmodule Quarto.Ecto.Query do
     |> order_by_coalescing(config)
   end
 
+  # To prevent that we order by a column with NULL values the NULL values are coalesced into
+  # real values by a custom function.
+  # This means we need to remove the current order by clauses on the queryable and create a new one
+  # that uses coalesced
   defp order_by_coalescing(queryable, config) do
     coalesced_order_bys =
       config.cursor_fields
       |> Enum.map(fn {field, {position, order}} ->
         # nil is passed as value so the coalescing function will cast it to a high/low value
         coalesce_value = config.coalesce.(field, position, nil)
-
-        dynamic = dynamic([{q, position}], coalesce(field(q, ^field), ^coalesce_value))
+        dynamic = maybe_coalesce_order_by(field, position, coalesce_value)
 
         {order, dynamic}
       end)
@@ -52,6 +54,15 @@ defmodule Quarto.Ecto.Query do
     queryable
     |> Ecto.Query.exclude(:order_by)
     |> order_by(^coalesced_order_bys)
+  end
+
+  # If the coalescing function returns nil, we fall back on using original column value
+  defp maybe_coalesce_order_by(field, position, nil) do
+    dynamic([{q, position}], field(q, ^field))
+  end
+
+  defp maybe_coalesce_order_by(field, position, coalesce_value) do
+    dynamic([{q, position}], coalesce(field(q, ^field), ^coalesce_value))
   end
 
   defp filter_values(queryable, %{cursor_fields: fields, coalesce: coalesce}, values, direction) do
@@ -105,6 +116,12 @@ defmodule Quarto.Ecto.Query do
     )
   end
 
+  # if coalesce fn resolves to nil it need not be applied to the query
+  defp build_cursor_where(:gt, position, field, value, nil, dynamic)
+       when is_atom(field) do
+    dynamic([{q, position}], field(q, ^field) > ^value and ^dynamic)
+  end
+
   defp build_cursor_where(:gt, position, field, value, coalesce_value, dynamic)
        when is_atom(field) do
     dynamic(
@@ -121,6 +138,12 @@ defmodule Quarto.Ecto.Query do
     )
   end
 
+  # if coalesce fn resolves to nil it need not be applied to the query
+  defp build_cursor_where(:lt, position, field, value, nil, dynamic)
+       when is_atom(field) do
+    dynamic([{q, position}], field(q, ^field) < ^value and ^dynamic)
+  end
+
   defp build_cursor_where(:lt, position, field, value, coalesce_value, dynamic)
        when is_atom(field) do
     dynamic(
@@ -135,6 +158,12 @@ defmodule Quarto.Ecto.Query do
       [{q, position}],
       coalesce(field(q, ^field), ^coalesce_value) == ^coalesce_value and ^dynamic
     )
+  end
+
+  # if coalesce fn resolves to nil it need not be applied to the query
+  defp build_cursor_where(:prev, position, field, value, nil, dynamic)
+       when is_atom(field) do
+    dynamic([{q, position}], field(q, ^field) == ^value and ^dynamic)
   end
 
   defp build_cursor_where(:prev, position, field, value, coalesce_value, dynamic)

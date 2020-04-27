@@ -12,6 +12,13 @@ defmodule QuartoTest do
   doctest Quarto
   setup :create_posts
 
+  defmodule TestRepo do
+    def all(queryable, opts \\ []) do
+      send(self(), {:query, queryable})
+      Quarto.Repo.all(queryable, opts)
+    end
+  end
+
   @opts [limit: 4]
 
   describe "paginate descending, 1 cursor field" do
@@ -235,10 +242,10 @@ defmodule QuartoTest do
       opts =
         @opts ++
           [
-            coalesce: fn field, _position, value ->
+            coalesce: fn field, _position, _value ->
               case field do
                 :title -> "0"
-                _ -> value
+                _ -> nil
               end
             end
           ]
@@ -477,6 +484,52 @@ defmodule QuartoTest do
     end
   end
 
+  test "sorts descending with before and after cursor", %{
+    posts: {_p1, p2, p3, p4, p5, p6, p7, p8, p9, _p10, _p11, _p12}
+  } do
+    %Page{entries: entries, metadata: _metadata} =
+      Post
+      |> order_by(desc: :position)
+      |> Quarto.paginate(
+        [
+          after: encode_cursor([p9.position]),
+          before: encode_cursor([p2.position]),
+          limit: 8
+        ],
+        TestRepo
+      )
+
+    assert_receive({:query, query})
+
+    assert "#Ecto.Query<from p0 in Quarto.Post, where: p0.position > ^2 and ^true and ^true, where: p0.position < ^9 and ^true and ^true, order_by: [desc: p0.position], limit: ^9>" ==
+             inspect(query)
+
+    assert to_ids(entries) == to_ids([p8, p7, p6, p5, p4, p3])
+  end
+
+  test "sorts ascending with before and after cursor", %{
+    posts: {_p1, p2, p3, p4, p5, p6, p7, p8, p9, _p10, _p11, _p12}
+  } do
+    %Page{entries: entries, metadata: metadata} =
+      Post
+      |> order_by(asc: :position)
+      |> Quarto.paginate(
+        [
+          before: encode_cursor([p9.position]),
+          after: encode_cursor([p2.position]),
+          limit: 8
+        ],
+        TestRepo
+      )
+
+    assert_receive({:query, query})
+
+    assert "#Ecto.Query<from p0 in Quarto.Post, where: p0.position < ^9 and ^true and ^true, where: p0.position > ^2 and ^true and ^true, order_by: [asc: p0.position], limit: ^9>" ==
+             inspect(query)
+
+    assert to_ids(entries) == to_ids([p3, p4, p5, p6, p7, p8])
+  end
+
   test "returns an empty page when there are no results" do
     page =
       unpublished_posts()
@@ -616,6 +669,97 @@ defmodule QuartoTest do
                total_count: 12,
                total_count_cap_exceeded: false
              }
+    end
+  end
+
+  describe "queryable" do
+    test "does not add coalesce in ORDER BY clause when default coalesce function returns nil" do
+      opts = [limit: 5]
+
+      Quarto.Post |> order_by({:desc, :position}) |> Quarto.paginate(opts, TestRepo)
+      assert_receive({:query, queryable})
+
+      assert "#Ecto.Query<from p0 in Quarto.Post, order_by: [desc: p0.position], limit: ^6>" ==
+               inspect(queryable)
+    end
+
+    test "does add coalesce in ORDER BY clause when default coalesce function returns non-nil" do
+      coalesce = fn field, _position, _value ->
+        case field do
+          :position -> 100
+        end
+      end
+
+      opts = [limit: 5, coalesce: coalesce]
+
+      Quarto.Post |> order_by({:desc, :position}) |> Quarto.paginate(opts, TestRepo)
+      assert_receive({:query, queryable})
+
+      assert "#Ecto.Query<from p0 in Quarto.Post, order_by: [desc: coalesce(p0.position, ^100)], limit: ^6>" ==
+               inspect(queryable)
+    end
+
+    test "does not add coalesce with 'after' in WHERE and ORDER BY clause when default coalesce function returns nil" do
+      opts = [limit: 5, after: [3]]
+
+      Quarto.Post |> order_by({:desc, :position}) |> Quarto.paginate(opts, TestRepo)
+      assert_receive({:query, queryable})
+
+      assert "#Ecto.Query<from p0 in Quarto.Post, where: p0.position < ^3 and ^true and ^true, order_by: [desc: p0.position], limit: ^6>" ==
+               inspect(queryable)
+    end
+
+    test "add coalesces in WHERE < clause when custom coalesce function returns nil" do
+      coalesce = fn field, _position, _value ->
+        case field do
+          :position -> 100
+        end
+      end
+
+      opts = [limit: 5, after: [3], coalesce: coalesce]
+
+      Quarto.Post |> order_by({:desc, :position}) |> Quarto.paginate(opts, TestRepo)
+      assert_receive({:query, queryable})
+
+      assert "#Ecto.Query<from p0 in Quarto.Post, where: coalesce(p0.position, ^100) < ^3 and ^true and ^true, order_by: [desc: coalesce(p0.position, ^100)], limit: ^6>" ==
+               inspect(queryable)
+    end
+
+    test "add coalesces in WHERE > clause when custom coalesce function returns nil" do
+      coalesce = fn field, _position, _value ->
+        case field do
+          :position -> 100
+        end
+      end
+
+      opts = [limit: 5, before: [3], coalesce: coalesce]
+
+      Quarto.Post |> order_by({:desc, :position}) |> Quarto.paginate(opts, TestRepo)
+      assert_receive({:query, queryable})
+
+      assert "#Ecto.Query<from p0 in Quarto.Post, where: coalesce(p0.position, ^100) > ^3 and ^true and ^true, order_by: [asc: coalesce(p0.position, ^100)], limit: ^6>" ==
+               inspect(queryable)
+    end
+
+    test "add coalesces in WHERE == clause when custom coalesce function returns nil for multiple sort_fields" do
+      coalesce = fn field, _position, _value ->
+        case field do
+          :position -> 100
+          :id -> 10
+        end
+      end
+
+      opts = [limit: 5, after: [3, 10], coalesce: coalesce]
+
+      Quarto.Post
+      |> order_by({:desc, :position})
+      |> order_by({:asc, :id})
+      |> Quarto.paginate(opts, TestRepo)
+
+      assert_receive({:query, queryable})
+
+      assert "#Ecto.Query<from p0 in Quarto.Post, where: coalesce(p0.position, ^100) == ^3 and (coalesce(p0.id, ^10) > ^10 and ^true) or coalesce(p0.position, ^100) < ^3 and ^true and ^true, order_by: [desc: coalesce(p0.position, ^100), asc: coalesce(p0.id, ^10)], limit: ^6>" ==
+               inspect(queryable)
     end
   end
 
