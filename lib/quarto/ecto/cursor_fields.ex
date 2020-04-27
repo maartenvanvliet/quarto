@@ -3,12 +3,21 @@ defmodule Quarto.Ecto.CursorFields do
   Derive the cursor fields from a given queryable
 
   """
+
+  @type field :: atom()
+
+  @type position :: pos_integer()
+
+  @type direction :: :asc | :desc
+
   @doc """
   build/2 accepts an Ecto.Query and inspects the Ecto AST to retrieve
   the fields the query will order by. These will be used to create the
   cursor.
   """
-  @spec build(queryable :: Ecto.Query.t(), config :: Keyword.t()) :: [any]
+  @spec build(queryable :: Ecto.Query.t(), config :: Keyword.t()) :: [
+          {field(), {position(), direction()}}
+        ]
   def build(%Ecto.Query{order_bys: order_bys} = queryable, _config) do
     Enum.map(order_bys, fn %Ecto.Query.QueryExpr{expr: expr} ->
       case expr do
