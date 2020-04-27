@@ -510,7 +510,7 @@ defmodule QuartoTest do
   test "sorts ascending with before and after cursor", %{
     posts: {_p1, p2, p3, p4, p5, p6, p7, p8, p9, _p10, _p11, _p12}
   } do
-    %Page{entries: entries, metadata: metadata} =
+    %Page{entries: entries, metadata: _metadata} =
       Post
       |> order_by(asc: :position)
       |> Quarto.paginate(
