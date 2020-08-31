@@ -42,7 +42,7 @@ defmodule Quarto.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ecto_sql, "~> 3.4.0"},
+      {:ecto_sql, "~> 3.4"},
       {:postgrex, "~> 0.14", only: :test},
       {:ex_doc, "~> 0.21", only: [:dev, :test]},
       {:credo, "~> 1.4", only: [:dev, :test], runtime: false}
