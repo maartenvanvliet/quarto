@@ -6,8 +6,11 @@ jobs:
     name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
     strategy:
       matrix:
-        otp: [22.x]
-        elixir: [1.10.2]
+        include:
+          - elixir: 1.10.2
+            otp: 22.x
+            check_formatted: true
+            check_style: true
 
     services:
       postgres:
@@ -24,13 +27,13 @@ jobs:
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
-      - name: Check formatting
-        if: matrix.elixir == '1.10.2'
-        run: mix format --check-formatted
       - name: Install Dependencies
         run: mix deps.get
+      - name: Check formatting
+        if: matrix.check_formatted
+        run: mix format --check-formatted
       - name: Check style
-        if: matrix.elixir == '1.10.2'
+        if: matrix.check_style
         run: mix credo --format flycheck
       - name: Compile project
         run: mix compile --warnings-as-errors
