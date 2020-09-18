@@ -1,6 +1,6 @@
 defmodule QuartoTest do
   use Quarto.DataCase, async: true
-
+  use ExUnitProperties
   alias Quarto.Cursor
   alias Quarto.Page
   alias Quarto.Page.Metadata
@@ -19,149 +19,76 @@ defmodule QuartoTest do
     end
   end
 
+  defmodule Run do
+    defstruct [:direction, :fields, :posts, :limit, :title, :total_count_cap]
+  end
+
   @opts [limit: 4]
 
-  describe "paginate descending, 1 cursor field" do
-    test "paginates forward", %{
-      posts: {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12}
-    } do
-      page = posts_by_published_at(:desc) |> paginate(@opts)
-      assert to_ids(page.entries) == to_ids([p1, p2, p3, p4])
-      assert page.metadata.after == encode_cursor([p4.published_at])
+  property "paginates forward" do
+    check all(%{title: title} = run <- generate_run()) do
+      expected_posts = sort_by_fields(run.posts, run.fields, run.direction)
 
-      page = posts_by_published_at(:desc) |> paginate(@opts ++ [after: page.metadata.after])
-      assert to_ids(page.entries) == to_ids([p5, p6, p7, p8])
-      assert page.metadata.after == encode_cursor([p8.published_at])
+      query =
+        Quarto.Post
+        |> join(:left, [p], u in assoc(p, :user), as: :user)
+        |> preload([p, u], user: u)
+        |> where(title: ^title)
+        |> build_order_by(run.fields, run.direction)
 
-      page = posts_by_published_at(:desc) |> paginate(@opts ++ [after: page.metadata.after])
-      assert to_ids(page.entries) == to_ids([p9, p10, p11, p12])
-      assert page.metadata.after == nil
-    end
+      first_page = Quarto.Repo.paginate(query, limit: run.limit)
+      posts = rebuild_list_forward(query, first_page, limit: run.limit)
 
-    test "paginates backward", %{
-      posts: {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12}
-    } do
-      page =
-        posts_by_published_at(:desc)
-        |> paginate(@opts ++ [before: encode_cursor([p12.published_at])])
+      assert to_ids(expected_posts) == to_ids(posts.entries)
+      assert posts.metadata.after == nil
 
-      assert to_ids(page.entries) == to_ids([p8, p9, p10, p11])
-      assert page.metadata.before == encode_cursor([p8.published_at])
-
-      page = posts_by_published_at(:desc) |> paginate(@opts ++ [before: page.metadata.before])
-      assert to_ids(page.entries) == to_ids([p4, p5, p6, p7])
-      assert page.metadata.before == encode_cursor([p4.published_at])
-
-      page = posts_by_published_at(:desc) |> paginate(@opts ++ [before: page.metadata.before])
-      assert to_ids(page.entries) == to_ids([p1, p2, p3])
-      assert page.metadata.after == encode_cursor([p3.published_at])
-
-      assert page.metadata.before == nil
-    end
-
-    test "paginates backward with erlang term cursor", %{
-      posts: {_p1, _p2, _p3, _p4, p5, p6, p7, p8, p9, _p10, _p11, _p12}
-    } do
-      page = posts_by_published_at(:desc) |> paginate(@opts ++ [{:before, [p9.published_at]}])
-      assert to_ids(page.entries) == to_ids([p5, p6, p7, p8])
-      assert page.metadata.before == encode_cursor([p5.published_at])
-    end
-
-    test "paginates forward with erlang term cursor", %{
-      posts: {_p1, _p2, _p3, p4, p5, p6, p7, p8, _p9, _p10, _p11, _p12}
-    } do
-      page = posts_by_published_at(:desc) |> paginate(@opts ++ [{:after, [p4.published_at]}])
-      assert to_ids(page.entries) == to_ids([p5, p6, p7, p8])
-      assert page.metadata.after == encode_cursor([p8.published_at])
+      cleanup!(title)
     end
   end
 
-  describe "paginate ascending, 1 cursor field" do
-    test "paginates forward", %{
-      posts: {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12}
-    } do
-      page = posts_by_published_at(:asc) |> paginate(@opts)
-      assert to_ids(page.entries) == to_ids([p12, p11, p10, p9])
-      assert page.metadata.after == encode_cursor([p9.published_at])
+  property "paginates backward" do
+    check all(%{title: title} = run <- generate_run(min_length: 1)) do
+      {last_post, expected_posts} =
+        sort_by_fields(run.posts, run.fields, run.direction)
+        |> split_of_cursor_post
 
-      page = posts_by_published_at(:asc) |> paginate(@opts ++ [after: page.metadata.after])
-      assert to_ids(page.entries) == to_ids([p8, p7, p6, p5])
-      assert page.metadata.after == encode_cursor([p5.published_at])
+      before_cursor = run.fields |> cursor_values_from_fields(last_post) |> encode_cursor
 
-      page = posts_by_published_at(:asc) |> paginate(@opts ++ [after: page.metadata.after])
-      assert to_ids(page.entries) == to_ids([p4, p3, p2, p1])
-      assert page.metadata.after == nil
-    end
+      query =
+        Quarto.Post
+        |> join(:left, [p], u in assoc(p, :user), as: :user)
+        |> preload([p, u], user: u)
+        |> where(title: ^title)
+        |> build_order_by(run.fields, run.direction)
 
-    test "paginates backward", %{
-      posts: {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12}
-    } do
-      page =
-        posts_by_published_at(:asc)
-        |> paginate(@opts ++ [before: encode_cursor([p1.published_at])])
+      first_page = Quarto.Repo.paginate(query, limit: run.limit, before: before_cursor)
 
-      assert to_ids(page.entries) == to_ids([p5, p4, p3, p2])
-      assert page.metadata.before == encode_cursor([p5.published_at])
+      posts = rebuild_list_backward(query, first_page, limit: run.limit)
 
-      page = posts_by_published_at(:asc) |> paginate(@opts ++ [before: page.metadata.before])
-      assert to_ids(page.entries) == to_ids([p9, p8, p7, p6])
-      assert page.metadata.before == encode_cursor([p9.published_at])
+      assert to_ids(expected_posts) == to_ids(posts.entries)
+      assert posts.metadata.before == nil
 
-      page = posts_by_published_at(:asc) |> paginate(@opts ++ [before: page.metadata.before])
-      assert to_ids(page.entries) == to_ids([p12, p11, p10])
-      assert page.metadata.after == encode_cursor([p10.published_at])
-
-      assert page.metadata.before == nil
+      cleanup!(title)
     end
   end
 
-  describe "paginate descending, 2 cursor fields" do
-    test "paginates forward", %{
-      posts: {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12}
-    } do
-      page = posts_by_user_and_published_at(:desc) |> paginate(@opts)
-      assert to_ids(page.entries) == to_ids([p1, p4, p7, p10])
-      assert page.metadata.after == encode_cursor([p10.user_id, p10.published_at])
+  property "has total count" do
+    check all(%{title: title} = run <- generate_run()) do
+      expected_posts = sort_by_fields(run.posts, run.fields, run.direction)
 
-      page =
-        posts_by_user_and_published_at(:desc) |> paginate(@opts ++ [after: page.metadata.after])
+      query =
+        Quarto.Post
+        |> join(:left, [p], u in assoc(p, :user), as: :user)
+        |> preload([p, u], user: u)
+        |> where(title: ^title)
+        |> build_order_by(run.fields, run.direction)
 
-      assert to_ids(page.entries) == to_ids([p2, p5, p8, p11])
-      assert page.metadata.after == encode_cursor([p11.user_id, p11.published_at])
+      first_page = Quarto.Repo.paginate(query, limit: run.limit, include_total_count: true)
+      posts = rebuild_list_forward(query, first_page, limit: run.limit, include_total_count: true)
 
-      page =
-        posts_by_user_and_published_at(:desc) |> paginate(@opts ++ [after: page.metadata.after])
+      assert posts.metadata.total_count == length(expected_posts)
 
-      assert to_ids(page.entries) == to_ids([p3, p6, p9, p12])
-      assert page.metadata.after == nil
-    end
-
-    test "paginates backward", %{
-      posts: {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12}
-    } do
-      posts_by_user_and_published_at(:desc) |> Quarto.Repo.all()
-
-      page =
-        posts_by_user_and_published_at(:desc)
-        |> paginate(@opts ++ [before: encode_cursor([p12.user_id, p12.published_at])])
-
-      assert to_ids(page.entries) == to_ids([p11, p3, p6, p9])
-      assert page.metadata.before == encode_cursor([p11.user_id, p11.published_at])
-
-      page =
-        posts_by_user_and_published_at(:desc)
-        |> paginate(@opts ++ [before: page.metadata.before])
-
-      assert to_ids(page.entries) == to_ids([p10, p2, p5, p8])
-      assert page.metadata.before == encode_cursor([p10.user_id, p10.published_at])
-
-      page =
-        posts_by_user_and_published_at(:desc) |> paginate(@opts ++ [before: page.metadata.before])
-
-      assert to_ids(page.entries) == to_ids([p1, p4, p7])
-      assert page.metadata.after == encode_cursor([p7.user_id, p7.published_at])
-
-      assert page.metadata.before == nil
+      cleanup!(title)
     end
   end
 
@@ -367,59 +294,6 @@ defmodule QuartoTest do
     end
   end
 
-  describe "paginate posts by user name descending, 2 cursor fields" do
-    test "paginates forward", %{
-      posts: {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12}
-    } do
-      page = posts_by_user_name_and_published_at(:desc) |> paginate(@opts)
-      assert to_ids(page.entries) == to_ids([p1, p4, p7, p10])
-
-      assert page.metadata.after ==
-               encode_cursor([p10.user.name, p10.published_at])
-
-      page =
-        posts_by_user_name_and_published_at(:desc)
-        |> paginate(@opts ++ [after: page.metadata.after])
-
-      assert to_ids(page.entries) == to_ids([p2, p5, p8, p11])
-      assert page.metadata.after == encode_cursor([p11.user.name, p11.published_at])
-
-      page =
-        posts_by_user_name_and_published_at(:desc)
-        |> paginate(@opts ++ [after: page.metadata.after])
-
-      assert to_ids(page.entries) == to_ids([p3, p6, p9, p12])
-      assert page.metadata.after == nil
-    end
-
-    test "paginates backward", %{
-      posts: {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12}
-    } do
-      page =
-        posts_by_user_name_and_published_at(:desc)
-        |> paginate(@opts ++ [before: encode_cursor([p12.user.name, p12.published_at])])
-
-      assert to_ids(page.entries) == to_ids([p11, p3, p6, p9])
-      assert page.metadata.before == encode_cursor([p11.user.name, p11.published_at])
-
-      page =
-        posts_by_user_name_and_published_at(:desc)
-        |> paginate(@opts ++ [before: page.metadata.before])
-
-      assert to_ids(page.entries) == to_ids([p10, p2, p5, p8])
-      assert page.metadata.before == encode_cursor([p10.user.name, p10.published_at])
-
-      page =
-        posts_by_user_name_and_published_at(:desc)
-        |> paginate(@opts ++ [before: page.metadata.before])
-
-      assert to_ids(page.entries) == to_ids([p1, p4, p7])
-      assert page.metadata.after == encode_cursor([p7.user.name, p7.published_at])
-
-      assert page.metadata.before == nil
-    end
-  end
-
   describe "builds cursor from related user" do
     test "from alias", %{
       posts: {_p1, _p2, _p3, _p4, _p5, _p6, _p7, _p8, _p9, p10, _p11, _p12}
@@ -528,16 +402,6 @@ defmodule QuartoTest do
              inspect(query)
 
     assert to_ids(entries) == to_ids([p3, p4, p5, p6, p7, p8])
-  end
-
-  test "returns an empty page when there are no results" do
-    page =
-      unpublished_posts()
-      |> paginate(limit: 10)
-
-    assert page.entries == []
-    assert page.metadata.after == nil
-    assert page.metadata.before == nil
   end
 
   test "paginates without macro", %{
@@ -763,6 +627,34 @@ defmodule QuartoTest do
     end
   end
 
+  defp cursor_values_from_fields(fields, post) do
+    Enum.map(fields, fn
+      {rel, field} ->
+        Map.fetch!(post, rel) |> Map.fetch!(field)
+
+      field ->
+        Map.fetch!(post, field)
+    end)
+  end
+
+  defp generate_run(opts \\ [min_length: 0]) do
+    gen all(
+          direction <- one_of_direction(),
+          fields <- post_order_field_list(),
+          title <- map(string(:ascii), fn s -> "title " <> s end),
+          post_list <- post_list(title, opts),
+          limit <- positive_integer()
+        ) do
+      %Run{
+        direction: direction,
+        fields: fields,
+        posts: post_list,
+        limit: limit,
+        title: title
+      }
+    end
+  end
+
   defp to_ids(entries), do: Enum.map(entries, & &1.id)
 
   defp encode_cursor(value) do
@@ -770,24 +662,8 @@ defmodule QuartoTest do
     cursor
   end
 
-  defp unpublished_posts do
-    Quarto.Post |> where([p], is_nil(p.published_at)) |> order_by({:desc, :published_at})
-  end
-
   defp posts_by_title_and_position(order) do
     Quarto.Post |> order_by({^order, :title}) |> order_by({^order, :position})
-  end
-
-  defp posts_by_user_and_published_at(order) do
-    Quarto.Post |> order_by({^order, :user_id}) |> order_by({^order, :published_at})
-  end
-
-  defp posts_by_user_name_and_published_at(order) do
-    Quarto.Post
-    |> join(:left, [p], u in assoc(p, :user), as: :user)
-    |> preload([p, u], user: u)
-    |> order_by([p, u], desc: u.name)
-    |> order_by({^order, :published_at})
   end
 
   defp posts_by_published_at(order) do
@@ -802,6 +678,65 @@ defmodule QuartoTest do
     DateTime.utc_now()
     |> DateTime.add(-(days * 86_400))
     |> DateTime.truncate(:second)
+  end
+
+  def one_of_direction() do
+    one_of([constant(:asc), constant(:desc)])
+  end
+
+  def post_order_field_list() do
+    deterministic =
+      one_of([
+        list_of(
+          resize(one_of([constant(:id), constant(:position), constant(:published_at)]), 1000),
+          min_length: 1,
+          max_length: 3
+        )
+      ])
+
+    optional = list_of(one_of([:user_id, {:user, :name}]), max_length: 2)
+
+    bind(deterministic, fn deterministic ->
+      bind(optional, fn nondeterministic ->
+        # At least one deterministic field to sort by to get deterministic results
+        constant(deterministic ++ nondeterministic)
+      end)
+    end)
+  end
+
+  def user_list(length) do
+    uniq_list_of(
+      map(string(:ascii), fn name ->
+        insert(:user, name: name)
+      end),
+      length: length,
+      uniq_fun: fn u -> u.name end
+    )
+  end
+
+  def post_list(run, opts \\ [min_length: 0]) do
+    gen all(
+          positions <- uniq_list_of(resize(integer(), 1000), min_length: opts[:min_length]),
+          days <-
+            uniq_list_of(resize(positive_integer(), 1000), length: Kernel.length(positions)),
+          users <- user_list(Kernel.length(positions))
+        ) do
+      positions
+      |> Enum.zip(days)
+      |> Enum.zip(users)
+      |> Enum.map(fn {{position, day}, user} ->
+        insert(:post,
+          user: user,
+          title: run,
+          position: position,
+          published_at: datetime_from_now(days: -1 * day)
+        )
+      end)
+    end
+  end
+
+  defp cleanup!(run) do
+    Quarto.Post |> where(title: ^run) |> Repo.delete_all()
   end
 
   defp create_posts(_context) do
@@ -832,5 +767,70 @@ defmodule QuartoTest do
     {:ok,
      profiles: {profile1, profile2, profile3},
      posts: {p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12}}
+  end
+
+  defp datetime_from_now(days: days) do
+    DateTime.utc_now() |> DateTime.add(days * 86_400) |> DateTime.truncate(:second)
+  end
+
+  defp split_of_cursor_post(posts) do
+    [first | posts] = Enum.reverse(posts)
+
+    {first, Enum.reverse(posts)}
+  end
+
+  defp rebuild_list_forward(_query, %{metadata: %{after: nil}} = res, _opts) do
+    res
+  end
+
+  defp rebuild_list_forward(query, %{metadata: %{after: after_cursor}} = result, opts) do
+    new_result = Quarto.Repo.paginate(query, Keyword.merge(opts, after: after_cursor))
+
+    new_result = %{new_result | entries: result.entries ++ new_result.entries}
+    rebuild_list_forward(query, new_result, opts)
+  end
+
+  defp rebuild_list_backward(_query, %{metadata: %{before: nil}} = res, _opts) do
+    res
+  end
+
+  defp rebuild_list_backward(query, %{metadata: %{before: before_cursor}} = result, opts) do
+    new_result = Quarto.Repo.paginate(query, Keyword.merge(opts, before: before_cursor))
+
+    new_result = %{new_result | entries: new_result.entries ++ result.entries}
+    rebuild_list_backward(query, new_result, opts)
+  end
+
+  defp sort_by_fields(posts, fields, direction) do
+    posts
+    |> Enum.sort_by(
+      fn post ->
+        Enum.map(fields, fn
+          {rel, field} ->
+            related = Map.fetch!(post, rel)
+            Map.fetch!(related, field) |> sortable_value
+
+          field ->
+            Map.fetch!(post, field) |> sortable_value
+        end)
+        |> List.to_tuple()
+      end,
+      direction
+    )
+  end
+
+  defp sortable_value(val) when is_integer(val), do: val
+  defp sortable_value(%DateTime{} = dt), do: DateTime.to_unix(dt)
+  defp sortable_value(val), do: val
+
+  defp build_order_by(query, post_fields, direction) do
+    Enum.reduce(post_fields, query, fn
+      # hardcode user.name joined order by
+      {:user, :name}, query ->
+        query |> order_by([p, u], {^direction, u.name})
+
+      field, query ->
+        query |> order_by({^direction, ^field})
+    end)
   end
 end
