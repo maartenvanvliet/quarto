@@ -4,13 +4,13 @@ defmodule Quarto.TestMigration do
 
   def change do
     create table(:comments) do
-      add(:body, :string)
+      add(:body, :text)
       add(:post_id, :integer)
       timestamps()
     end
 
     create table(:posts) do
-      add(:title, :string)
+      add(:title, :text)
       add(:position, :integer)
       add(:published_at, :utc_datetime)
       add(:user_id, :integer)
@@ -18,14 +18,14 @@ defmodule Quarto.TestMigration do
     end
 
     create table(:profiles) do
-      add(:title, :string)
+      add(:title, :text)
       add(:user_id, :integer)
       timestamps()
     end
 
     create table(:users) do
-      add(:name, :string)
-      add(:photo, :string)
+      add(:name, :text)
+      add(:photo, :text)
       timestamps()
     end
   end
