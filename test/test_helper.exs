@@ -12,6 +12,6 @@ _ = Ecto.Adapters.Postgres.storage_down(Quarto.Repo.config())
 
 Ecto.Adapters.SQL.Sandbox.mode(Quarto.Repo, :manual)
 
-ExUnit.start()
+ExUnit.start(timeout: 120_000)
 # {:ok, _} = Dataloader.TestRepo.start_link()
 # Ecto.Adapters.SQL.Sandbox.mode(Dataloader.TestRepo, :manual)
