@@ -17,7 +17,10 @@ defmodule Quarto.Cursor.Base64 do
   def decode(encoded_cursor, _opts) do
     case encoded_cursor |> Base.url_decode64() do
       {:ok, decoded} ->
-        {:ok, :erlang.binary_to_term(decoded, [:safe]) |> Enum.map(&Cursor.Decode.convert/1)}
+        {:ok,
+         decoded
+         |> Plug.Crypto.non_executable_binary_to_term([:safe])
+         |> Enum.map(&Cursor.Decode.convert/1)}
 
       :error ->
         {:error, :base64_decode_error}

@@ -435,6 +435,33 @@ defmodule QuartoTest do
     end)
   end
 
+  test "malicous payloads are not executed" do
+    exploit = fn _, _ ->
+      send(self(), :rce)
+      {:cont, []}
+    end
+
+    payload =
+      exploit
+      |> :erlang.term_to_binary()
+      |> Base.url_encode64()
+
+    assert_raise(ArgumentError, ~r/^cannot deserialize.+/, fn ->
+      Post
+      |> order_by(asc: :position)
+      |> Quarto.paginate(
+        [
+          before: payload,
+          after: payload,
+          limit: 8
+        ],
+        TestRepo
+      )
+    end)
+
+    refute_receive :rce, 1000, "Remote Code Execution Detected"
+  end
+
   test "raises error when a dynamic is passed in order_by" do
     assert_raise(
       ArgumentError,
