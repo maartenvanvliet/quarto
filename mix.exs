@@ -47,7 +47,7 @@ defmodule Quarto.MixProject do
       {:ex_doc, "~> 0.21", only: [:dev, :test]},
       {:credo, "~> 1.4", only: [:dev, :test], runtime: false},
       {:stream_data, "~> 0.5", only: [:dev, :test]},
-      {:plug_crypto, "~> 1.1.2"}
+      {:plug_crypto, "~> 1.2.0"}
     ]
   end
 end
