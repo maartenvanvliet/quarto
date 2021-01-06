@@ -26,24 +26,25 @@ defmodule Quarto.Cursor do
 
   Returns an :ok tuple if it was able to decode the cursor, or else an :error tuple
   """
-  @callback decode(encoded_cursor :: nil | binary, opts :: list()) :: {:ok, term} | {:error, any}
+  @callback decode(encoded_cursor :: nil | binary, opts :: keyword()) ::
+              {:ok, term} | {:error, any}
 
   @doc """
   Decodes a cursor binary.
 
   Returns the cursor or raises when it fails to decode
   """
-  @callback decode!(encoded_cursor :: nil | binary, opts :: list()) :: term
+  @callback decode!(encoded_cursor :: nil | binary, opts :: keyword()) :: term
   @doc """
   Encodes an erlang term
 
   Returns an :ok tuple if it was able to encode the cursor, or else an :error tuple
   """
-  @callback encode(decoded_cursor :: term, opts :: list()) :: {:ok, binary} | {:error, any}
+  @callback encode(decoded_cursor :: term, opts :: keyword()) :: {:ok, binary} | {:error, any}
   @doc """
   Encodes an erlang term.
 
   Returns the cursor or raises when it fails to encodes
   """
-  @callback encode!(decoded_cursor :: term, opts :: list()) :: binary
+  @callback encode!(decoded_cursor :: term, opts :: keyword()) :: binary | no_return()
 end

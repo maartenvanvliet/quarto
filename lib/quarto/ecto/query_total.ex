@@ -2,7 +2,7 @@ defmodule Quarto.Ecto.QueryTotal do
   @moduledoc false
   import Ecto.Query
 
-  @spec total_count(queryable :: Ecto.Query.t(), Quarto.Config.t(), Ecto.Repo.t(), Keyword.list()) ::
+  @spec total_count(queryable :: Ecto.Query.t(), Quarto.Config.t(), Ecto.Repo.t(), keyword()) ::
           {integer, false | nil | true}
   def total_count(_queryable, %{include_total_count: false}, _repo, _repo_opts),
     do: {nil, nil}

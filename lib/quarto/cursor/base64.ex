@@ -54,9 +54,7 @@ defmodule Quarto.Cursor.Base64 do
 
   @impl true
   def encode!(values, opts \\ []) do
-    case encode(values, opts) do
-      {:ok, cursor} -> cursor
-      {:error, error} -> raise(ArgumentError, "error encoding cursor (#{error})")
-    end
+    {:ok, cursor} = encode(values, opts)
+    cursor
   end
 end
