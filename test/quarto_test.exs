@@ -482,6 +482,28 @@ defmodule QuartoTest do
     end)
   end
 
+  describe "with include_entries" do
+    test "when set to false" do
+      %Page{metadata: metadata, entries: entries} =
+        posts_by_published_at(:desc)
+        |> paginate(
+          limit: 5,
+          total_count_limit: :infinity,
+          include_total_count: true,
+          include_entries: false
+        )
+
+      assert entries == []
+
+      assert metadata == %Metadata{
+               before: nil,
+               limit: 5,
+               total_count: 12,
+               total_count_cap_exceeded: false
+             }
+    end
+  end
+
   describe "with include_total_count" do
     test "when set to :infinity", %{
       posts: {_p1, _p2, _p3, _p4, p5, _p6, _p7, _p8, _p9, _p10, _p11, _p12}
@@ -649,8 +671,10 @@ defmodule QuartoTest do
 
       assert_receive({:query, queryable})
 
-      assert "#Ecto.Query<from p0 in Quarto.Post, where: coalesce(p0.position, ^100) == ^3 and (coalesce(p0.id, ^10) > ^10 and ^true) or coalesce(p0.position, ^100) < ^3 and ^true and ^true, order_by: [desc: coalesce(p0.position, ^100), asc: coalesce(p0.id, ^10)], limit: ^6>" ==
-               inspect(queryable)
+      assert """
+             #Ecto.Query<from p0 in Quarto.Post, where: (coalesce(p0.position, ^100) == ^3 and (coalesce(p0.id, ^10) > ^10 and ^true)) or
+               (coalesce(p0.position, ^100) < ^3 and ^true and ^true), order_by: [desc: coalesce(p0.position, ^100), asc: coalesce(p0.id, ^10)], limit: ^6>
+             """ == inspect(queryable) <> "\n"
     end
   end
 

@@ -31,6 +31,7 @@ defmodule Quarto do
     * `:cursor` - Module to use for encoding/decoding the cursor
     * `:cursor_fields` - Module to use for building the cursor from a record
     * `:include_total_count` - Set this to true to return the total number of records matching the query. Note that this number will be capped by :total_count_limit. Defaults to false.
+    * `:include_entries` - Set this to false to skip fetching the records. Useful if you only need the total counts. Defaults to true.
     * `:total_count_primary_key_field` - Running count queries on specified column of the table
     * `:limit` - Limits the number of records returned per page. Note that this number will be capped by :maximum_limit. Defaults to `50`.
     * `:maximum_limit` - Sets a maximum cap for :limit. This option can be useful when :limit is set dynamically (e.g from a URL param set by a user) but you still want to enfore a maximum. Defaults to 500.
@@ -199,6 +200,10 @@ defmodule Quarto do
 
   defp last_page?(sorted_entries, %{limit: limit}) do
     Enum.count(sorted_entries) <= limit
+  end
+
+  defp entries(_, %{include_entries: false}, _, _) do
+    []
   end
 
   defp entries(queryable, config, repo, repo_opts) do

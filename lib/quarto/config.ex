@@ -13,6 +13,7 @@ defmodule Quarto.Config do
     :custom_options,
     :transform,
     :include_total_count,
+    :include_entries,
     :limit,
     :maximum_limit,
     :queryable,
@@ -41,6 +42,7 @@ defmodule Quarto.Config do
       coalesce: opts[:coalesce] || fn _field, _position_, _value -> nil end,
       cursor_builder: {Quarto.CursorValue, :build, []},
       cursor_fields: cursor_fields.build(queryable, opts),
+      include_entries: Keyword.get(opts, :include_entries, true),
       include_total_count: opts[:include_total_count] || false,
       total_count_primary_key_field:
         opts[:total_count_primary_key_field] || @default_total_count_primary_key_field,
