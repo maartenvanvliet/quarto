@@ -654,6 +654,7 @@ defmodule QuartoTest do
                inspect(queryable)
     end
 
+    @tag skip_before: "1.13"
     test "add coalesces in WHERE == clause when custom coalesce function returns nil for multiple sort_fields" do
       coalesce = fn field, _position, _value ->
         case field do
@@ -671,12 +672,10 @@ defmodule QuartoTest do
 
       assert_receive({:query, queryable})
 
-      # The output of inspect/1 differs from elixir 1.12 to elixir 1.13,
-      # so we need to accomodate the minor differences.
-      assert inspect(queryable) in [
-               "#Ecto.Query<from p0 in Quarto.Post, where: (coalesce(p0.position, ^100) == ^3 and (coalesce(p0.id, ^10) > ^10 and ^true)) or\n  (coalesce(p0.position, ^100) < ^3 and ^true and ^true), order_by: [desc: coalesce(p0.position, ^100), asc: coalesce(p0.id, ^10)], limit: ^6>",
-               "#Ecto.Query<from p0 in Quarto.Post, where: coalesce(p0.position, ^100) == ^3 and (coalesce(p0.id, ^10) > ^10 and ^true) or coalesce(p0.position, ^100) < ^3 and ^true and ^true, order_by: [desc: coalesce(p0.position, ^100), asc: coalesce(p0.id, ^10)], limit: ^6>"
-             ]
+      assert """
+             #Ecto.Query<from p0 in Quarto.Post, where: (coalesce(p0.position, ^100) == ^3 and (coalesce(p0.id, ^10) > ^10 and ^true)) or
+               (coalesce(p0.position, ^100) < ^3 and ^true and ^true), order_by: [desc: coalesce(p0.position, ^100), asc: coalesce(p0.id, ^10)], limit: ^6>
+             """ == inspect(queryable) <> "\n"
     end
   end
 
