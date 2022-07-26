@@ -19,9 +19,7 @@ defmodule Quarto.CursorValue do
   defp get_cursor_value({field, {position, _}}, entry, queryable) do
     case chase_binding(queryable, position) do
       nil ->
-        raise "Could not find a binding in position #{position} in assocs #{
-                inspect(queryable.assocs)
-              } or in aliases #{inspect(queryable.aliases)}"
+        raise "Could not find a binding in position #{position} in assocs #{inspect(queryable.assocs)} or in aliases #{inspect(queryable.aliases)}"
 
       key ->
         key = key |> Enum.reverse() |> Enum.map(&Access.key/1)
