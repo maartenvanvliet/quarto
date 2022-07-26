@@ -671,10 +671,8 @@ defmodule QuartoTest do
 
       assert_receive({:query, queryable})
 
-      assert """
-             #Ecto.Query<from p0 in Quarto.Post, where: (coalesce(p0.position, ^100) == ^3 and (coalesce(p0.id, ^10) > ^10 and ^true)) or
-               (coalesce(p0.position, ^100) < ^3 and ^true and ^true), order_by: [desc: coalesce(p0.position, ^100), asc: coalesce(p0.id, ^10)], limit: ^6>
-             """ == inspect(queryable) <> "\n"
+      assert "#Ecto.Query<from p0 in Quarto.Post, where: (coalesce(p0.position, ^100) == ^3 and (coalesce(p0.id, ^10) > ^10 and ^true)) or\n  (coalesce(p0.position, ^100) < ^3 and ^true and ^true), order_by: [desc: coalesce(p0.position, ^100), asc: coalesce(p0.id, ^10)], limit: ^6>" ==
+               inspect(queryable, pretty: false)
     end
   end
 
