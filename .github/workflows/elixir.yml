@@ -15,6 +15,7 @@ jobs:
             otp: 25.x
             check_formatted: true
             check_style: true
+            run_latest: true
 
     services:
       postgres:
@@ -41,8 +42,15 @@ jobs:
         run: mix credo --format flycheck
       - name: Compile project
         run: mix compile --warnings-as-errors
+      - name: Run tests for older versions
+        if: false == matrix.run_latest
+        run: mix test --cover --exclude skip_before:1.13
+        env:
+          DB_HOST: localhost
+          DB_PORT: ${{ job.services.postgres.ports[5432] }}
       - name: Run tests
-        run: mix test  --cover
+        if: matrix.run_latest
+        run: mix test --cover
         env:
           DB_HOST: localhost
           DB_PORT: ${{ job.services.postgres.ports[5432] }}

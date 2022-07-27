@@ -654,6 +654,7 @@ defmodule QuartoTest do
                inspect(queryable)
     end
 
+    @tag skip_before: "1.13"
     test "add coalesces in WHERE == clause when custom coalesce function returns nil for multiple sort_fields" do
       coalesce = fn field, _position, _value ->
         case field do
