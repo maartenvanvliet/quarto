@@ -19,7 +19,7 @@ defmodule Quarto.Ecto.CursorFields do
           {field(), {position(), direction()}}
         ]
   def build(%Ecto.Query{order_bys: order_bys} = queryable, _config) do
-    Enum.map(order_bys, fn %Ecto.Query.QueryExpr{expr: expr} ->
+    Enum.map(order_bys, fn %{expr: expr} ->
       case expr do
         [{direction, {{:., [], [{:&, [], [position]}, field]}, [], []}}] ->
           {field, {position, direction}}
